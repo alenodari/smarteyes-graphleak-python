@@ -1,0 +1,4 @@
+config,scenario_id,source_file,scenario_type,time_s,hour,y_true,y_pred,score
+local_N2,1,data_1.csv,normal,0,0,0,0,0.0
+local_N2,1,data_1.csv,normal,600,0,0,0,0.8
+local_N2,11,data_11.csv,onset_leak,28800,8,1,1,52.4

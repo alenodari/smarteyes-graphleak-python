@@ -1,0 +1,4 @@
+config,scenario_id,source_file,scenario_type,tp,fp,fn,tn,detected_any,valid_detection,first_alert_time_s,delay_min,fp_before_onset,clean_valid_detection,max_score,mean_score
+local_N2,1,data_1.csv,normal,0,0,0,145,0,0,,,,0,0,18.7,4.2
+local_N2,11,data_11.csv,onset_leak,73,0,0,72,1,1,28800,0,0,1,64.9,28.3
+local_N8_downstream_only,36,data_36.csv,persistent_leak,145,4,0,0,1,1,1200,,4,0,81.5,44.6
