@@ -72,7 +72,6 @@ def evaluate_configuration(name, cols, label_fn, alpha=0.25, drift=0.75, thresho
     normal_df = df[df["scenario_type"] == "normal"]
     params = robust_group_params(normal_df, cols, group_col="hour")
 
-    rows = []
     sample_rows = []
 
     for scenario_id, g in df.groupby("scenario_id"):
@@ -93,85 +92,15 @@ def evaluate_configuration(name, cols, label_fn, alpha=0.25, drift=0.75, thresho
         y_pred = np.asarray(y_pred)
         scores = np.asarray(scores)
 
-        scenario_type = g["scenario_type"].iloc[0]
-
-        tp = int(((y_true == 1) & (y_pred == 1)).sum())
-        fp = int(((y_true == 0) & (y_pred == 1)).sum())
-        fn = int(((y_true == 1) & (y_pred == 0)).sum())
-        tn = int(((y_true == 0) & (y_pred == 0)).sum())
-
-        first_alert_idx = None
-        first_alert_time_s = None
-
-        alert_indices = np.where(y_pred == 1)[0]
-        if len(alert_indices) > 0:
-            first_alert_idx = int(alert_indices[0])
-            first_alert_time_s = int(g["time_s"].iloc[first_alert_idx])
-
-        delay_min = None
-        valid_detection = 0
-        first_valid_alert_idx = None
-        first_valid_alert_time_s = None
-
-        if y_true.any():
-            onset_idx = int(np.argmax(y_true == 1))
-            fp_before_onset = int(y_pred[:onset_idx].sum())
-
-            candidates = np.where(
-                (y_pred == 1) & (np.arange(len(y_pred)) >= onset_idx)
-            )[0]
-
-            if len(candidates) > 0:
-                first_valid_alert_idx = int(candidates[0])
-                first_valid_alert_time_s = int(g["time_s"].iloc[first_valid_alert_idx])
-                delay_min = int((first_valid_alert_idx - onset_idx) * 10)
-                valid_detection = 1
-        else:
-            onset_idx = None
-            fp_before_onset = int(y_pred.sum())
-
-        clean_valid_detection = int(valid_detection == 1 and fp_before_onset == 0)
-        clean_delay_min = delay_min if clean_valid_detection else None
-
-        rows.append({
-            "config": name,
-            "cols": ",".join(cols),
-            "alpha": alpha,
-            "drift": drift,
-            "threshold": threshold,
-            "group_col": "hour",
-
-            "scenario_id": scenario_id,
-            "source_file": g["source_file"].iloc[0],
-            "scenario_type": scenario_type,
-            "last_label": int(g["label"].iloc[-1]),
-
-            "tp": tp,
-            "fp": fp,
-            "fn": fn,
-            "tn": tn,
-
-            "detected_any": int(y_pred.any()),
-            "valid_detection": valid_detection,
-
-            "first_alert_idx": first_alert_idx,
-            "first_alert_time_s": first_alert_time_s,
-
-            "first_valid_alert_idx": first_valid_alert_idx,
-            "first_valid_alert_time_s": first_valid_alert_time_s,
-            "delay_min": delay_min,
-
-            "fp_before_onset": fp_before_onset,
-            "clean_valid_detection": clean_valid_detection,
-            "clean_delay_min": clean_delay_min,
-
-            "max_score": float(scores.max()),
-            "mean_score": float(scores.mean()),
-        })
-
         for i, (_, row) in enumerate(g.iterrows()):
             sample_rows.append({
                 "config": name,
+                "cols": ",".join(cols),
+                "alpha": alpha,
+                "drift": drift,
+                "threshold": threshold,
+                "group_col": "hour",
+                "meter": name.replace("local_", "").replace("_downstream_only", ""),
                 "scenario_id": scenario_id,
                 "source_file": row["source_file"],
                 "scenario_type": row["scenario_type"],
@@ -183,19 +112,18 @@ def evaluate_configuration(name, cols, label_fn, alpha=0.25, drift=0.75, thresho
                 "score": float(scores[i]),
             })
 
-    res = pd.DataFrame(rows)
     pred = pd.DataFrame(sample_rows)
 
-    if res.empty:
+    if pred.empty:
         raise RuntimeError(
-            f"No scenario rows were generated for configuration {name}. "
-            "Check the indentation of rows.append() and whether df has scenario_id."
+            f"No sample rows were generated for configuration {name}. "
+            "Check whether df has scenario_id and valid samples."
         )
 
-    TP = res["tp"].sum()
-    FP = res["fp"].sum()
-    FN = res["fn"].sum()
-    TN = res["tn"].sum()
+    TP = int(((pred["y_true"] == 1) & (pred["y_pred"] == 1)).sum())
+    FP = int(((pred["y_true"] == 0) & (pred["y_pred"] == 1)).sum())
+    FN = int(((pred["y_true"] == 1) & (pred["y_pred"] == 0)).sum())
+    TN = int(((pred["y_true"] == 0) & (pred["y_pred"] == 0)).sum())
 
     precision = TP / (TP + FP) if TP + FP else 0
     recall = TP / (TP + FN) if TP + FN else 0
@@ -206,56 +134,33 @@ def evaluate_configuration(name, cols, label_fn, alpha=0.25, drift=0.75, thresho
     print({"TP": TP, "FP": FP, "FN": FN, "TN": TN})
     print({"precision": precision, "recall": recall, "f1": f1})
 
-    print("Cenários com qualquer alerta por tipo:")
-    print(res.groupby("scenario_type")["detected_any"].mean())
-
-    print("Detecção válida por tipo:")
-    print(res.groupby("scenario_type")["valid_detection"].mean())
-
-    print("FP antes do onset por tipo:")
-    print(res.groupby("scenario_type")["fp_before_onset"].mean())
-
-    print("Detecção limpa por tipo:")
-    print(res.groupby("scenario_type")["clean_valid_detection"].mean())
-
-    print("Delay médio limpo em onset_leak:")
-    print(res[res["scenario_type"] == "onset_leak"]["clean_delay_min"].dropna().mean())
-    
-    print("Delay médio em onset_leak:")
-    print(res[res["scenario_type"] == "onset_leak"]["delay_min"].dropna().mean())
-
-    return res, pred
+    return pred
 
 # Configuração 1: volume multissensor
 all_volume_cols = [NODE_MAP[n] for n in ["N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9"]]
 
-res_all, pred_all = evaluate_configuration(
+pred_all = evaluate_configuration(
     name="volume_multisensor",
     cols=all_volume_cols,
     label_fn=lambda g: (g["label"] > 0),
 )
 
-res_n2, pred_n2 = evaluate_configuration(
+pred_n2 = evaluate_configuration(
     name="local_N2",
     cols=[NODE_MAP["N2"]],
     label_fn=lambda g: g["leak_downstream_N2"],
 )
 
-res_n8, pred_n8 = evaluate_configuration(
+pred_n8 = evaluate_configuration(
     name="local_N8_downstream_only",
     cols=[NODE_MAP["N8"]],
     label_fn=lambda g: g["leak_downstream_N8"],
 )
 
-res_n9, pred_n9 = evaluate_configuration(
+pred_n9 = evaluate_configuration(
     name="local_N9_downstream_only",
     cols=[NODE_MAP["N9"]],
     label_fn=lambda g: g["leak_downstream_N9"],
-)
-
-all_results = pd.concat(
-    [res_all, res_n2, res_n8, res_n9],
-    ignore_index=True
 )
 
 all_predictions = pd.concat(
@@ -263,5 +168,4 @@ all_predictions = pd.concat(
     ignore_index=True
 )
 
-all_results.to_csv("baseline_ewma_cusum_results_by_scenario.csv", index=False)
 all_predictions.to_csv("baseline_ewma_cusum_predictions_by_sample.csv", index=False)
