@@ -27,8 +27,8 @@ REQUIRED_COLUMNS = {
     "score",
 }
 
-GROUP_COLUMNS = ["config", "scenario_id", "source_file", "scenario_type"]
-BASE_SAMPLE_COLUMNS = set(GROUP_COLUMNS + ["time_s", "hour", "y_true", "y_pred", "score"])
+CORE_GROUP_COLUMNS = ["config", "scenario_id", "source_file", "scenario_type"]
+BASE_SAMPLE_COLUMNS = set(CORE_GROUP_COLUMNS + ["time_s", "hour", "y_true", "y_pred", "score"])
 
 
 def validate_input(df: pd.DataFrame) -> None:
@@ -36,6 +36,10 @@ def validate_input(df: pd.DataFrame) -> None:
     if missing:
         missing_csv = ", ".join(sorted(missing))
         raise ValueError(f"Input CSV is missing required columns: {missing_csv}")
+
+
+def grouping_columns(df: pd.DataFrame) -> list[str]:
+    return CORE_GROUP_COLUMNS
 
 
 def extract_constant_metadata(group: pd.DataFrame) -> dict[str, object]:
@@ -111,9 +115,10 @@ def scenario_row(group: pd.DataFrame) -> dict[str, object]:
 
 def build_results(df: pd.DataFrame) -> pd.DataFrame:
     validate_input(df)
+    group_cols = grouping_columns(df)
 
     rows = []
-    for _, group in df.groupby(GROUP_COLUMNS, sort=True, dropna=False):
+    for _, group in df.groupby(group_cols, sort=True, dropna=False):
         rows.append(scenario_row(group.copy()))
 
     results = pd.DataFrame(rows)
@@ -123,6 +128,7 @@ def build_results(df: pd.DataFrame) -> pd.DataFrame:
         "cols",
         "alpha",
         "drift",
+        "delta",
         "threshold",
         "group_col",
         "meter",

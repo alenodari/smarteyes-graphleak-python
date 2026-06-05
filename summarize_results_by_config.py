@@ -139,7 +139,7 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Input CSV is missing required columns: {missing_csv}")
 
     rows = []
-    for _, group in df.groupby("config", sort=True):
+    for _, group in df.groupby(["config"], sort=True):
         rows.append(summarize_config(group.copy()))
 
     summary = pd.DataFrame(rows)

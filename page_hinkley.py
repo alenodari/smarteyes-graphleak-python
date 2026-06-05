@@ -10,21 +10,21 @@ from detector_common import (
 
 
 GROUP_COL = "hour"
-ALPHA = 0.25
-DRIFT = 0.75
-THRESHOLD = 50.0
+DELTA = 0.5
+THRESHOLD = 20.0
 
-def ewma_cusum_predict(
+def page_hinkley_predict(
     g: pd.DataFrame,
     cols: list[str],
     params: dict[str, dict[int, tuple[float, float]]],
-    alpha: float = ALPHA,
-    drift: float = DRIFT,
+    delta: float = DELTA,
     threshold: float = THRESHOLD,
     group_col: str = GROUP_COL,
 ):
-    ewma = {col: 0.0 for col in cols}
-    cusum = {col: 0.0 for col in cols}
+    running_mean = {col: 0.0 for col in cols}
+    cumulative = {col: 0.0 for col in cols}
+    cumulative_min = {col: 0.0 for col in cols}
+    sample_count = {col: 0 for col in cols}
 
     preds = []
     scores = []
@@ -37,9 +37,13 @@ def ewma_cusum_predict(
             median, scale = params[col][group_value]
             z = (float(row[col]) - median) / scale
 
-            ewma[col] = alpha * z + (1.0 - alpha) * ewma[col]
-            cusum[col] = max(0.0, cusum[col] + ewma[col] - drift)
-            max_score = max(max_score, cusum[col])
+            sample_count[col] += 1
+            running_mean[col] += (z - running_mean[col]) / sample_count[col]
+            cumulative[col] += z - running_mean[col] - delta
+            cumulative_min[col] = min(cumulative_min[col], cumulative[col])
+
+            score = cumulative[col] - cumulative_min[col]
+            max_score = max(max_score, score)
 
         scores.append(max_score)
         preds.append(1 if max_score > threshold else 0)
@@ -57,19 +61,18 @@ def evaluate_local_configuration(config: str, cols: list[str], label_fn) -> pd.D
         config=config,
         cols=cols,
         label_fn=label_fn,
-        predict_fn=lambda g, detector_cols: ewma_cusum_predict(
+        predict_fn=lambda g, detector_cols: page_hinkley_predict(
             g,
             detector_cols,
             params,
-            alpha=ALPHA,
-            drift=DRIFT,
+            delta=DELTA,
             threshold=THRESHOLD,
             group_col=GROUP_COL,
         ),
         metadata={
-            "alpha": ALPHA,
-            "drift": DRIFT,
-            "delta": np.nan,
+            "alpha": np.nan,
+            "drift": np.nan,
+            "delta": DELTA,
             "threshold": THRESHOLD,
             "group_col": GROUP_COL,
         },
@@ -104,7 +107,7 @@ def main() -> None:
     )
 
     all_predictions = pd.concat([pred_all, pred_n2, pred_n8, pred_n9], ignore_index=True)
-    all_predictions.to_csv("baseline_ewma_cusum_predictions_by_sample.csv", index=False)
+    all_predictions.to_csv("baseline_page_hinkley_predictions_by_sample.csv", index=False)
 
 
 if __name__ == "__main__":
