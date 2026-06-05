@@ -10,22 +10,16 @@ from graphleak_detector_common import (
 
 
 GROUP_COL = "hour"
-ALPHA = 0.25
-DRIFT = 0.75
-THRESHOLD = 50.0
+THRESHOLD = 3.0
 
-def ewma_cusum_predict(
+
+def shewhart_predict(
     g: pd.DataFrame,
     cols: list[str],
     params: dict[str, dict[int, tuple[float, float]]],
-    alpha: float = ALPHA,
-    drift: float = DRIFT,
     threshold: float = THRESHOLD,
     group_col: str = GROUP_COL,
 ):
-    ewma = {col: 0.0 for col in cols}
-    cusum = {col: 0.0 for col in cols}
-
     preds = []
     scores = []
 
@@ -36,10 +30,7 @@ def ewma_cusum_predict(
         for col in cols:
             median, scale = params[col][group_value]
             z = (float(row[col]) - median) / scale
-
-            ewma[col] = alpha * z + (1.0 - alpha) * ewma[col]
-            cusum[col] = max(0.0, cusum[col] + ewma[col] - drift)
-            max_score = max(max_score, cusum[col])
+            max_score = max(max_score, z)
 
         scores.append(max_score)
         preds.append(1 if max_score > threshold else 0)
@@ -57,18 +48,16 @@ def evaluate_local_configuration(config: str, cols: list[str], label_fn) -> pd.D
         config=config,
         cols=cols,
         label_fn=label_fn,
-        predict_fn=lambda g, detector_cols: ewma_cusum_predict(
+        predict_fn=lambda g, detector_cols: shewhart_predict(
             g,
             detector_cols,
             params,
-            alpha=ALPHA,
-            drift=DRIFT,
             threshold=THRESHOLD,
             group_col=GROUP_COL,
         ),
         metadata={
-            "alpha": ALPHA,
-            "drift": DRIFT,
+            "alpha": np.nan,
+            "drift": np.nan,
             "delta": np.nan,
             "threshold": THRESHOLD,
             "group_col": GROUP_COL,
@@ -104,7 +93,7 @@ def main() -> None:
     )
 
     all_predictions = pd.concat([pred_all, pred_n2, pred_n8, pred_n9], ignore_index=True)
-    all_predictions.to_csv("baseline_ewma_cusum_predictions_by_sample.csv", index=False)
+    all_predictions.to_csv("baseline_shewhart_predictions_by_sample.csv", index=False)
 
 
 if __name__ == "__main__":

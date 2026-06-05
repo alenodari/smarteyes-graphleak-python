@@ -8,10 +8,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from detector_common import NODE_MAP, load_experiment_dataset, robust_group_params
+from graphleak_detector_common import NODE_MAP, load_experiment_dataset, robust_group_params
 from page_hinkley import page_hinkley_predict
-from summarize_results_by_config import build_summary
-from build_results_by_scenario import build_results
+from results_summarize_by_config import build_summary
+from results_build_by_scenario import build_results
 
 
 GROUP_COL = "hour"

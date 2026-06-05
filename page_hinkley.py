@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from detector_common import (
+from graphleak_detector_common import (
     NODE_MAP,
     evaluate_configuration,
     load_experiment_dataset,

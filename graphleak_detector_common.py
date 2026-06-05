@@ -48,7 +48,13 @@ def robust_group_params(normal_df: pd.DataFrame, cols: list[str], group_col: str
 
 
 def meter_name_from_config(config: str) -> str:
-    return config.replace("ewma_cusum_", "").replace("page_hinkley_", "").replace("local_", "").replace("_downstream_only", "")
+    return (
+        config.replace("ewma_cusum_", "")
+        .replace("page_hinkley_", "")
+        .replace("shewhart_", "")
+        .replace("local_", "")
+        .replace("_downstream_only", "")
+    )
 
 
 def evaluate_configuration(
